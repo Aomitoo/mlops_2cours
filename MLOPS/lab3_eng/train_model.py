@@ -6,11 +6,12 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import mlflow
 import joblib
 import sys
+import os
 
 def train_model(df):
     """Обучение Logistic Regression + MLflow"""
     
-    # Удаляем все строки с NaN (критично для sklearn)
+    # Удаляем все строки с NaN
     df = df.dropna()
     
     X = df.drop('income', axis=1)
@@ -20,11 +21,11 @@ def train_model(df):
         X, y, test_size=0.3, random_state=42, stratify=y
     )
 
-    # Обучение — БЕЗ ПРОБЕЛОВ в имени класса!
+    # Обучение — БЕЗ ПРОБЕЛОВ!
     model = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
     model.fit(X_train, y_train)
 
-    # Предсказания — БЕЗ ПРОБЕЛОВ в переменных!
+    # Предсказания — БЕЗ ПРОБЕЛОВ!
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
 
@@ -35,7 +36,7 @@ def train_model(df):
     f1 = f1_score(y_test, y_pred)
     roc_auc = roc_auc_score(y_test, y_proba)
 
-    # Метрики выводим в STDERR (не попадут в best_model.txt) 
+    # Метрики в stderr
     print(f"\n=== Метрики модели ===", file=sys.stderr)
     print(f"Accuracy:  {accuracy:.4f}", file=sys.stderr)
     print(f"Precision: {precision:.4f}", file=sys.stderr)
@@ -63,13 +64,20 @@ def train_model(df):
         joblib.dump(model, "model_income.pkl")
         joblib.dump(X.columns.tolist(), "feature_columns.pkl")
         
-        #  КРИТИЧЕСКОЕ: записываем ТОЛЬКО путь в best_model.txt 
+        #  Записываем АБСОЛЮТНЫЙ путь в best_model.txt 
         model_uri = mlflow.get_artifact_uri("model")
+        # Конвертируем file:// URI в локальный путь
+        if model_uri.startswith("file://"):
+            model_path = model_uri[7:]  # убираем "file://"
+        else:
+            model_path = model_uri
+            
         with open("best_model.txt", "w") as f:
-            f.write(model_uri.strip())
+            f.write(model_path.strip())
+        
+        # Для отладки: выводим путь в stderr
+        print(f"\nМодель сохранена. Путь: {model_path}", file=sys.stderr)
 
-    # Информируем в stderr
-    print(f"\nМодель сохранена. URI: {model_uri}", file=sys.stderr)
     return True
 
 if __name__ == "__main__":
