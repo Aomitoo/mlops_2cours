@@ -8,11 +8,10 @@ import joblib
 import sys
 import os
 
-
 def train_model(df):
     """Обучение Logistic Regression + GridSearchCV + MLflow"""
     
-    # Удаляем все строки с NaN
+    # 1. Очистка данных от NaN
     df = df.dropna()
     
     X = df.drop('income', axis=1)
@@ -22,7 +21,7 @@ def train_model(df):
         X, y, test_size=0.3, random_state=42, stratify=y
     )
 
-    # Параметры для GridSearchCV
+    # 2. Параметры для GridSearchCV
     param_grid = {
         'C': [0.01, 0.1, 1, 10],
         'penalty': ['l1', 'l2'],
@@ -41,22 +40,21 @@ def train_model(df):
         verbose=0
     )
 
-    # Обучение + поиск лучших параметров
+    # 3. Обучение
     grid_search.fit(X_train, y_train)
     best_model = grid_search.best_estimator_
 
-    # Предсказания на тесте
+    # 4. Предсказания и метрики
     y_pred = best_model.predict(X_test)
     y_proba = best_model.predict_proba(X_test)[:, 1]
 
-    # Метрики на тестовой выборке
     accuracy = accuracy_score(y_test, y_pred)
     precision = precision_score(y_test, y_pred)
     recall = recall_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred)
     roc_auc = roc_auc_score(y_test, y_proba)
 
-    # Вывод метрик в STDERR
+    # 5. Вывод метрик в STDERR (чтобы не попасть в best_model.txt)
     print(f"\n=== Метрики модели на тесте ===", file=sys.stderr)
     print(f"Accuracy:  {accuracy:.4f}", file=sys.stderr)
     print(f"Precision: {precision:.4f}", file=sys.stderr)
@@ -65,10 +63,13 @@ def train_model(df):
     print(f"ROC-AUC:   {roc_auc:.4f}", file=sys.stderr)
     print(f"Лучшие параметры: {grid_search.best_params_}", file=sys.stderr)
 
-    # MLflow
+    # 6. MLflow
     mlflow.set_experiment("income_prediction")
     
-    # 🔥 КРИТИЧЕСКОЕ: получаем artifact_uri ВНУТРИ контекста 🔥
+    # 🔥 КРИТИЧЕСКИЙ МОМЕНТ 🔥
+    # Объявляем переменную model_path ДО входа в контекст
+    model_path = ""
+    
     with mlflow.start_run() as run:
         # Логирование параметров
         mlflow.log_params(grid_search.best_params_)
@@ -89,24 +90,25 @@ def train_model(df):
         joblib.dump(X.columns.tolist(), "feature_columns.pkl")
         joblib.dump(grid_search.best_params_, "best_params.pkl")
         
-        # 🔥 ПОЛУЧАЕМ artifact_uri ВНУТРИ контекста — это гарантирует правильный run_id с m- 🔥
+        # 🔥 ПОЛУЧАЕМ ПУТЬ СТРОГО ВНУТРИ КОНТЕКСТА 🔥
+        # Только здесь MLflow возвращает корректный URI с префиксом "m-" и верным ID
         artifact_uri = mlflow.get_artifact_uri("model")
-    
-    # 🔥 Конвертируем URI в локальный путь 🔥
-    # artifact_uri имеет вид: file:///.../mlruns/1/m-<run_id>/artifacts/model
-    if artifact_uri.startswith("file://"):
-        model_path = artifact_uri[7:]  # Убираем "file://"
-    else:
-        model_path = artifact_uri
-    
-    # Записываем ТОЛЬКО путь в best_model.txt
+        
+        # Конвертируем file:// URI в локальный путь
+        if artifact_uri.startswith("file://"):
+            model_path = artifact_uri[7:]  # Убираем "file://"
+        else:
+            model_path = artifact_uri
+            
+        print(f"\n✅ Путь модели (из MLflow): {model_path}", file=sys.stderr)
+
+    # 7. Запись пути в файл (СТРОГО ПОСЛЕ выхода из контекста)
     with open("best_model.txt", "w") as f:
         f.write(model_path.strip())
     
-    print(f"\n✅ Модель сохранена. Путь: {model_path}", file=sys.stderr)
+    print(f"✅ best_model.txt записан", file=sys.stderr)
 
     return True
-
 
 if __name__ == "__main__":
     df = pd.read_csv('processed_adult.csv')
