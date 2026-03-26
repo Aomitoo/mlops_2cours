@@ -6,6 +6,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import mlflow
 import joblib
 import sys
+import os
 
 
 def train_model(df):
@@ -21,11 +22,11 @@ def train_model(df):
         X, y, test_size=0.3, random_state=42, stratify=y
     )
 
-    # 🔥 Обучение — ИСПРАВЛЕНО: убран пробел в имени класса 🔥
+    # 🔥 Исправлено: убран пробел в имени класса 🔥
     model = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
     model.fit(X_train, y_train)
 
-    # 🔥 Предсказания — ИСПРАВЛЕНО: убран пробел в переменной 🔥
+    # 🔥 Исправлено: убран пробел в переменной 🔥
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
 
@@ -34,7 +35,7 @@ def train_model(df):
     precision = precision_score(y_test, y_pred)
     recall = recall_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred)
-    # 🔥 ИСПРАВЛЕНО: убран пробел в переменной 🔥
+    # 🔥 Исправлено: убран пробел в переменной 🔥
     roc_auc = roc_auc_score(y_test, y_proba)
 
     # 🔥 Вывод метрик в STDERR (не попадёт в best_model.txt) 🔥
@@ -46,11 +47,15 @@ def train_model(df):
     print(f"ROC-AUC:   {roc_auc:.4f}", file=sys.stderr)
 
     # MLflow
-    # 🔥 ИСПРАВЛЕНО: убран пробел в названии эксперимента 🔥
+    # 🔥 Исправлено: убран пробел в названии эксперимента 🔥
     mlflow.set_experiment("income_prediction")
     
-    with mlflow.start_run():
-        # 🔥 ИСПРАВЛЕНО: убраны пробелы во всех ключах параметров 🔥
+    # 🔥 Получаем run_id ДО начала контекста 🔥
+    with mlflow.start_run() as run:
+        run_id = run.info.run_id
+        experiment_id = mlflow.get_experiment_by_name("income_prediction").experiment_id
+        
+        # 🔥 Исправлено: убраны пробелы во всех ключах параметров 🔥
         mlflow.log_param("model", "LogisticRegression")
         mlflow.log_param("max_iter", 1000)
         mlflow.log_param("class_weight", "balanced")
@@ -63,46 +68,32 @@ def train_model(df):
         mlflow.log_metric("f1_score", f1)
         mlflow.log_metric("roc_auc", roc_auc)
 
-        # 🔥 Сохранение модели — ИСПРАВЛЕНО: убран пробел в ключе "model" 🔥
+        # 🔥 Сохранение модели — Исправлено: убран пробел в ключе "model" 🔥
         mlflow.sklearn.log_model(model, "model")
         joblib.dump(model, "model_income.pkl")
         joblib.dump(X.columns.tolist(), "feature_columns.pkl")
-        
-        # 🔥 КРИТИЧЕСКОЕ: записываем ТОЛЬКО путь к модели в best_model.txt 🔥
-        # Используем search_runs ПОСЛЕ завершения контекста, чтобы получить реальный путь
-        dfruns = mlflow.search_runs(experiment_names=["income_prediction"])
-        
-        if not dfruns.empty:
-            # Сортируем по accuracy (лучшая модель — с максимальной точностью)
-            best_run = dfruns.sort_values("metrics.accuracy", ascending=False).iloc[0]
-            artifact_uri = best_run['artifact_uri']
-            
-            # Конвертируем file:// URI в локальный путь
-            # 🔥 ИСПРАВЛЕНО: убран пробел в replace 🔥
-            if artifact_uri.startswith("file://"):
-                model_path = artifact_uri[7:] + "/model"
-            else:
-                model_path = artifact_uri + "/model"
-        else:
-            # Фолбэк: используем run_id текущего запуска
-            run_id = mlflow.active_run().info.run_id
-            experiment_id = mlflow.get_experiment_by_name("income_prediction").experiment_id
-            model_path = f"/var/lib/jenkins/workspace/Download/MLOPS/lab3_eng/mlruns/{experiment_id}/{run_id}/artifacts/model"
-        
-        # Записываем ТОЛЬКО путь в best_model.txt (без метрик!)
-        with open("best_model.txt", "w") as f:
-            f.write(model_path.strip())
-        
-        # Информируем в stderr
-        print(f"\n✅ Модель сохранена. Путь: {model_path}", file=sys.stderr)
+    
+    # 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: формируем путь ПОСЛЕ завершения контекста 🔥
+    # Конструируем путь вручную на основе run_id и experiment_id
+    # Это гарантирует, что путь совпадёт с реальной структурой на диске
+    workspace_dir = os.getcwd()
+    model_path = os.path.join(
+        workspace_dir,
+        "mlruns",
+        experiment_id,
+        run_id,
+        "artifacts",
+        "model"
+    )
+    
+    # Записываем ТОЛЬКО путь в best_model.txt (без метрик!)
+    with open("best_model.txt", "w") as f:
+        f.write(model_path.strip())
+    
+    # Информируем в stderr
+    print(f"\n✅ Модель сохранена. Путь: {model_path}", file=sys.stderr)
+    print(f"✅ best_model.txt записан", file=sys.stderr)
 
-    return True
-
-
-# === Обёртка для Airflow (опционально) ===
-def run_train():
-    df = pd.read_csv('processed_adult.csv')
-    train_model(df)
     return True
 
 
