@@ -17,7 +17,7 @@ def clean_data(df):
     df = df.drop_duplicates()
 
     # Удаляем пропуски в важных колонках
-    df = df.dropna(subset=['workclass', 'occupation', 'native_country'])
+    df = df.dropna(subset=['workclass', 'occupation', 'native_country', 'income'])
 
     # Обработка выбросов для числовых колонок
     numeric_cols = ['age', 'fnlwgt', 'education_num', 'capital_gain',
@@ -93,6 +93,8 @@ def encode_and_scale(df):
 
     # Объединяем всё
     df = pd.concat([df[numeric_cols], encoded_df, df['income']], axis=1)
+    
+    df = df.dropna()  
 
     print(f"После кодирования: {df.shape} колонок")
     return df

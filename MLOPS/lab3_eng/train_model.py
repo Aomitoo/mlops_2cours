@@ -9,7 +9,6 @@ import joblib
 
 def train_model(df):
     """Обучение Logistic Regression + MLflow"""
-    df = df.dropna(subset=['income']) 
     X = df.drop('income', axis=1)
     y = df['income']
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
