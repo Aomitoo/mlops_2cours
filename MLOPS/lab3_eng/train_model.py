@@ -50,9 +50,9 @@ def train_model(df):
     # 🔥 Исправлено: убран пробел в названии эксперимента 🔥
     mlflow.set_experiment("income_prediction")
     
-    # 🔥 Получаем run_id ДО начала контекста 🔥
+    # 🔥 Получаем run_id ТЕКУЩЕГО запуска внутри контекста 🔥
     with mlflow.start_run() as run:
-        run_id = run.info.run_id
+        current_run_id = run.info.run_id
         experiment_id = mlflow.get_experiment_by_name("income_prediction").experiment_id
         
         # 🔥 Исправлено: убраны пробелы во всех ключах параметров 🔥
@@ -74,14 +74,14 @@ def train_model(df):
         joblib.dump(X.columns.tolist(), "feature_columns.pkl")
     
     # 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: формируем путь ПОСЛЕ завершения контекста 🔥
-    # Конструируем путь вручную на основе run_id и experiment_id
+    # Конструируем путь вручную на основе ТЕКУЩЕГО run_id и experiment_id
     # Это гарантирует, что путь совпадёт с реальной структурой на диске
     workspace_dir = os.getcwd()
     model_path = os.path.join(
         workspace_dir,
         "mlruns",
-        experiment_id,
-        run_id,
+        str(experiment_id),
+        current_run_id,
         "artifacts",
         "model"
     )
@@ -92,6 +92,7 @@ def train_model(df):
     
     # Информируем в stderr
     print(f"\n✅ Модель сохранена. Путь: {model_path}", file=sys.stderr)
+    print(f"✅ Run ID: {current_run_id}", file=sys.stderr)
     print(f"✅ best_model.txt записан", file=sys.stderr)
 
     return True
