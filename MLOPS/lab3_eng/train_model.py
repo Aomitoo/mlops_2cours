@@ -62,15 +62,22 @@ def train_model(df):
         joblib.dump(model, "model_income.pkl")
         joblib.dump(X.columns.tolist(), "feature_columns.pkl")
         
-        #  Записать путь к модели в файл 
+        
+        model_uri = mlflow.get_artifact_uri("model")
         with open("best_model.txt", "w") as f:
-            f.write(mlflow.get_artifact_uri("model"))
-
-    print("\nМодель сохранена в model_income.pkl")
-    print("Метрики залогированы в MLflow")
-    print("Путь к модели записан в best_model.txt")
-
-    return True
+            f.write(model_uri.strip())
+        
+        # Вывод метрик в stderr 
+        import sys
+        print(f"\n=== Метрики модели ===", file=sys.stderr)
+        print(f"Accuracy:  {accuracy:.4f}", file=sys.stderr)
+        print(f"Precision: {precision:.4f}", file=sys.stderr)
+        print(f"Recall:    {recall:.4f}", file=sys.stderr)
+        print(f"F1-score:  {f1:.4f}", file=sys.stderr)
+        print(f"ROC-AUC:   {roc_auc:.4f}", file=sys.stderr)
+        print(f"\n✅ Модель: {model_uri}", file=sys.stderr)
+        
+        return True
 
 
 if __name__ == "__main__":
