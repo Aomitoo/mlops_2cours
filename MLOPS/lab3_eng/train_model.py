@@ -9,10 +9,16 @@ import joblib
 
 def train_model(df):
     """Обучение Logistic Regression + MLflow"""
+    
+
+    df = df.dropna()
+    
     X = df.drop('income', axis=1)
     y = df['income']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
-                                                        random_state=42, stratify=y)
+    
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=42, stratify=y
+    )
 
     # Обучение
     model = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
@@ -55,14 +61,18 @@ def train_model(df):
         mlflow.sklearn.log_model(model, "model")
         joblib.dump(model, "model_income.pkl")
         joblib.dump(X.columns.tolist(), "feature_columns.pkl")
+        
+        #  Записать путь к модели в файл 
+        with open("best_model.txt", "w") as f:
+            f.write(mlflow.get_artifact_uri("model"))
 
     print("\nМодель сохранена в model_income.pkl")
     print("Метрики залогированы в MLflow")
+    print("Путь к модели записан в best_model.txt")
 
     return True
 
 
-# === Основной запуск ===
 if __name__ == "__main__":
     df = pd.read_csv('processed_adult.csv')
     train_model(df)
