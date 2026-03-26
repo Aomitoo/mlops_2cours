@@ -7,7 +7,6 @@ import mlflow
 import joblib
 import sys
 
-
 def train_model(df):
     """Обучение Logistic Regression + MLflow"""
     
@@ -21,11 +20,11 @@ def train_model(df):
         X, y, test_size=0.3, random_state=42, stratify=y
     )
 
-    # Обучение
+    # Обучение — БЕЗ ПРОБЕЛОВ в имени класса!
     model = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
     model.fit(X_train, y_train)
 
-    # Предсказания
+    # Предсказания — БЕЗ ПРОБЕЛОВ в переменных!
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
 
@@ -36,7 +35,7 @@ def train_model(df):
     f1 = f1_score(y_test, y_pred)
     roc_auc = roc_auc_score(y_test, y_proba)
 
-    #  Вывод метрик в STDERR (не попадёт в best_model.txt) 
+    # Метрики выводим в STDERR (не попадут в best_model.txt) 
     print(f"\n=== Метрики модели ===", file=sys.stderr)
     print(f"Accuracy:  {accuracy:.4f}", file=sys.stderr)
     print(f"Precision: {precision:.4f}", file=sys.stderr)
@@ -59,22 +58,19 @@ def train_model(df):
         mlflow.log_metric("f1_score", f1)
         mlflow.log_metric("roc_auc", roc_auc)
 
-        # Сохранение модели
+        # Сохранение модели — БЕЗ ПРОБЕЛОВ в ключах!
         mlflow.sklearn.log_model(model, "model")
         joblib.dump(model, "model_income.pkl")
         joblib.dump(X.columns.tolist(), "feature_columns.pkl")
         
-        #  ТОЛЬКО путь в best_model.txt 
+        #  КРИТИЧЕСКОЕ: записываем ТОЛЬКО путь в best_model.txt 
         model_uri = mlflow.get_artifact_uri("model")
         with open("best_model.txt", "w") as f:
             f.write(model_uri.strip())
 
-    #  Информируем в stderr 
-    print(f"\n Модель сохранена. URI: {model_uri}", file=sys.stderr)
-    print(f"Путь записан в best_model.txt", file=sys.stderr)
-
+    # Информируем в stderr
+    print(f"\nМодель сохранена. URI: {model_uri}", file=sys.stderr)
     return True
-
 
 if __name__ == "__main__":
     df = pd.read_csv('processed_adult.csv')
