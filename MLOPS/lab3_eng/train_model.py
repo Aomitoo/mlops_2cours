@@ -5,12 +5,13 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import mlflow
 import joblib
+import sys
 
 
 def train_model(df):
     """Обучение Logistic Regression + MLflow"""
     
-
+    # Удаляем все строки с NaN (критично для sklearn)
     df = df.dropna()
     
     X = df.drop('income', axis=1)
@@ -35,12 +36,13 @@ def train_model(df):
     f1 = f1_score(y_test, y_pred)
     roc_auc = roc_auc_score(y_test, y_proba)
 
-    print(f"\n=== Метрики модели ===")
-    print(f"Accuracy:  {accuracy:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall:    {recall:.4f}")
-    print(f"F1-score:  {f1:.4f}")
-    print(f"ROC-AUC:   {roc_auc:.4f}")
+    #  Вывод метрик в STDERR (не попадёт в best_model.txt) 
+    print(f"\n=== Метрики модели ===", file=sys.stderr)
+    print(f"Accuracy:  {accuracy:.4f}", file=sys.stderr)
+    print(f"Precision: {precision:.4f}", file=sys.stderr)
+    print(f"Recall:    {recall:.4f}", file=sys.stderr)
+    print(f"F1-score:  {f1:.4f}", file=sys.stderr)
+    print(f"ROC-AUC:   {roc_auc:.4f}", file=sys.stderr)
 
     # MLflow
     mlflow.set_experiment("income_prediction")
@@ -62,22 +64,16 @@ def train_model(df):
         joblib.dump(model, "model_income.pkl")
         joblib.dump(X.columns.tolist(), "feature_columns.pkl")
         
-        
+        #  ТОЛЬКО путь в best_model.txt 
         model_uri = mlflow.get_artifact_uri("model")
         with open("best_model.txt", "w") as f:
             f.write(model_uri.strip())
-        
-        # Вывод метрик в stderr 
-        import sys
-        print(f"\n=== Метрики модели ===", file=sys.stderr)
-        print(f"Accuracy:  {accuracy:.4f}", file=sys.stderr)
-        print(f"Precision: {precision:.4f}", file=sys.stderr)
-        print(f"Recall:    {recall:.4f}", file=sys.stderr)
-        print(f"F1-score:  {f1:.4f}", file=sys.stderr)
-        print(f"ROC-AUC:   {roc_auc:.4f}", file=sys.stderr)
-        print(f"\n✅ Модель: {model_uri}", file=sys.stderr)
-        
-        return True
+
+    #  Информируем в stderr 
+    print(f"\n Модель сохранена. URI: {model_uri}", file=sys.stderr)
+    print(f"Путь записан в best_model.txt", file=sys.stderr)
+
+    return True
 
 
 if __name__ == "__main__":
