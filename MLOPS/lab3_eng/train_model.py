@@ -3,10 +3,15 @@ import numpy as np
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-import mlflow
 import joblib
 import sys
 import os
+import mlflow
+# Укажите абсолютный путь к хранилищу артефактов
+mlflow.set_tracking_uri("file:///var/lib/jenkins/mlruns")
+# Или относительный, если запускаете из одной рабочей директории:
+# mlflow.set_tracking_uri("file:./mlruns")
+mlflow.set_experiment("income_prediction")
 
 def train_model(df):
     """Обучение Logistic Regression + GridSearchCV + MLflow"""
@@ -66,17 +71,14 @@ def train_model(df):
     # 6. MLflow
     mlflow.set_experiment("income_prediction")
     
-    # 🔥 КРИТИЧЕСКИЙ МОМЕНТ 🔥
-    # Объявляем переменную model_path ДО входа в контекст
     model_path = ""
     
     with mlflow.start_run() as run:
-        # Логирование параметров
+        # Логирование параметров и метрик
         mlflow.log_params(grid_search.best_params_)
         mlflow.log_param("cv_folds", 3)
         mlflow.log_param("scoring_metric", "f1")
         
-        # Логирование метрик
         mlflow.log_metric("accuracy", accuracy)
         mlflow.log_metric("precision", precision)
         mlflow.log_metric("recall", recall)
@@ -84,29 +86,22 @@ def train_model(df):
         mlflow.log_metric("roc_auc", roc_auc)
         mlflow.log_metric("cv_best_f1", grid_search.best_score_)
 
-        # Сохранение модели
+        # ✅ Логирование модели в MLflow
         mlflow.sklearn.log_model(best_model, "model")
-        joblib.dump(best_model, "model_income.pkl")
-        joblib.dump(X.columns.tolist(), "feature_columns.pkl")
-        joblib.dump(grid_search.best_params_, "best_params.pkl")
         
-        # 🔥 ПОЛУЧАЕМ ПУТЬ СТРОГО ВНУТРИ КОНТЕКСТА 🔥
-        # Только здесь MLflow возвращает корректный URI с префиксом "m-" и верным ID
-        artifact_uri = mlflow.get_artifact_uri("model")
+        # ✅ Получаем run_id текущего запуска
+        run_id = run.info.run_id
         
-        # Конвертируем file:// URI в локальный путь
-        if artifact_uri.startswith("file://"):
-            model_path = artifact_uri[7:]  # Убираем "file://"
-        else:
-            model_path = artifact_uri
-            
-        print(f"\n✅ Путь модели (из MLflow): {model_path}", file=sys.stderr)
+        # ✅ Формируем правильный URI для mlflow models serve
+        mlflow_model_uri = f"runs:/{run_id}/model"
+        
+        print(f"\n✅ MLflow model URI: {mlflow_model_uri}", file=sys.stderr)
 
-    # 7. Запись пути в файл (СТРОГО ПОСЛЕ выхода из контекста)
-    with open("best_model.txt", "w") as f:
-        f.write(model_path.strip())
+    # ✅ Записываем URI в best_model.txt (это прочтёт deploy-задача)
+    with open("best_model.txt", "w", encoding="utf-8") as f:
+        f.write(mlflow_model_uri.strip())
     
-    print(f"✅ best_model.txt записан", file=sys.stderr)
+    print(f"✅ best_model.txt записан: {mlflow_model_uri}", file=sys.stderr)
 
     return True
 
