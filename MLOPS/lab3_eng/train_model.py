@@ -88,22 +88,22 @@ def train_model(df):
         mlflow.log_metric("roc_auc", roc_auc)
         mlflow.log_metric("cv_best_f1", grid_search.best_score_)
 
-        # ✅ Логирование модели в MLflow
+        #  Логирование модели в MLflow
         mlflow.sklearn.log_model(best_model, "model")
         
-        # ✅ Получаем run_id текущего запуска
+        #  Получаем run_id текущего запуска
         run_id = run.info.run_id
         
-        # ✅ Формируем правильный URI для mlflow models serve
+        # Формируем правильный URI для mlflow models serve
         mlflow_model_uri = f"runs:/{run_id}/model"
         
-        print(f"\n✅ MLflow model URI: {mlflow_model_uri}", file=sys.stderr)
+        print(f"\n MLflow model URI: {mlflow_model_uri}", file=sys.stderr)
 
-    # ✅ Записываем URI в best_model.txt (это прочтёт deploy-задача)
+    #  Записываем URI в best_model.txt (это прочтёт deploy-задача)
     with open("best_model.txt", "w", encoding="utf-8") as f:
         f.write(mlflow_model_uri.strip())
     
-    print(f"✅ best_model.txt записан: {mlflow_model_uri}", file=sys.stderr)
+    print(f" best_model.txt записан: {mlflow_model_uri}", file=sys.stderr)
 
     return True
 
