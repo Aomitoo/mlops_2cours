@@ -5,12 +5,14 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import joblib
 import sys
-import os
 import mlflow
-# Укажите абсолютный путь к хранилищу артефактов
-mlflow.set_tracking_uri("file:///var/lib/jenkins/mlruns")
-# Или относительный, если запускаете из одной рабочей директории:
-# mlflow.set_tracking_uri("file:./mlruns")
+import os
+
+# 🔹 Абсолютный путь к хранилищу артефактов (общий для всех задач)
+MLFLOW_TRACKING_DIR = "/var/lib/jenkins/mlruns"
+os.makedirs(MLFLOW_TRACKING_DIR, exist_ok=True)
+
+mlflow.set_tracking_uri(f"file://{MLFLOW_TRACKING_DIR}")
 mlflow.set_experiment("income_prediction")
 
 def train_model(df):
