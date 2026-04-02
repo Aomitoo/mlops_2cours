@@ -1,0 +1,30 @@
+# params.yaml
+# Параметры для этапа подготовки данных
+prepare:
+  seed: 42
+  outlier_method: "iqr"
+  iqr_multiplier: 1.5
+
+# Параметры для feature engineering
+features:
+  age_bins: [0, 25, 60, 100]
+  age_labels: ["young", "adult", "senior"]
+  married_categories:
+    - "Married-civ-spouse"
+    - "Married-spouse-absent" 
+    - "Married-AF-spouse"
+
+# Параметры обучения модели
+train:
+  test_size: 0.3
+  cv_folds: 3
+  scoring: "f1"
+  random_state: 42
+  
+  # GridSearch параметры
+  grid:
+    C: [0.01, 0.1, 1, 10]
+    penalty: ["l1", "l2"]
+    solver: ["liblinear", "saga"]
+    class_weight: ["balanced", null]
+    max_iter: [1000]
