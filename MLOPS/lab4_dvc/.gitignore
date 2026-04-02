@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+.direnv/
+
+# DVC cache (но не .dvc файлы!)
+.dvc/cache
+
+# MLflow
+mlruns/
+
+# Данные (управляются через .dvc файлы)
+data/raw/*.csv
+data/processed/*.csv
+data/models/
