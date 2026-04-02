@@ -96,6 +96,13 @@ def train_model(input_path, output_path, params_path, mlflow_dir):
     print(f"✓ Модель сохранена: {mlflow_model_uri}", file=sys.stderr)
     return True
 
+    # После вычисления metrics:
+    import json
+    metrics_path = os.path.join(os.path.dirname(output_path), 'metrics.json')
+    with open(metrics_path, 'w', encoding='utf-8') as f:
+        json.dump(metrics, f, indent=2, ensure_ascii=False)
+    print(f"✓ Метрики сохранены: {metrics_path}", file=sys.stderr)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=str, required=True)
