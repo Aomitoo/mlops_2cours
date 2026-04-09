@@ -17,17 +17,15 @@ def load_params(params_path='params.yaml'):
 
 def train_model(input_path, output_path, params_path, mlflow_dir):
     """Обучение модели с логированием в MLflow"""
-    import json  # ← Переносим импорт в начало
+    import json  
     
     params = load_params(params_path)
     
-    # Настройка MLflow — ИСПРАВЛЕНИЕ ПУТИ
-    # Если путь относительный — делаем его абсолютным
+    # Настройка MLflow 
     if not os.path.isabs(mlflow_dir):
         mlflow_dir = os.path.abspath(mlflow_dir)
     os.makedirs(mlflow_dir, exist_ok=True)
     
-    # Для локального хранилища не используем file:// префикс
     mlflow.set_tracking_uri(mlflow_dir)
     mlflow.set_experiment("income_prediction")
     
@@ -79,13 +77,12 @@ def train_model(input_path, output_path, params_path, mlflow_dir):
         print(f"{name}: {value:.4f}", file=sys.stderr)
     print(f"Лучшие параметры: {grid_search.best_params_}", file=sys.stderr)
     
-    # === СОХРАНЕНИЕ МЕТРИК В JSON (для DVC) ===
+    # СОХРАНЕНИЕ МЕТРИК В JSON (для DVC)
     metrics_path = os.path.join(os.path.dirname(output_path), 'metrics.json')
     os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(metrics, f, indent=2, ensure_ascii=False)
     print(f"✓ Метрики сохранены: {metrics_path}", file=sys.stderr)
-    # ==========================================
     
     # MLflow logging
     with mlflow.start_run() as run:
@@ -110,7 +107,7 @@ def train_model(input_path, output_path, params_path, mlflow_dir):
         f.write(mlflow_model_uri.strip())
     
     print(f"✓ Модель сохранена: {mlflow_model_uri}", file=sys.stderr)
-    return True  # ← return в самом конце!
+    return True  
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
