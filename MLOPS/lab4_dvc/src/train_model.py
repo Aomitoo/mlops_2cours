@@ -65,6 +65,17 @@ def train_model(input_path, output_path, params_path, mlflow_dir):
         'roc_auc': roc_auc_score(y_test, y_proba),
         'cv_best_f1': grid_search.best_score_
     }
+
+    import json
+    metrics = {
+        "accuracy": float(accuracy),
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1_score": float(f1),
+        "roc_auc": float(roc_auc)
+    }
+    with open('data/models/metrics.json', 'w') as f:
+        json.dump(metrics, f, indent=2)
     
     # Вывод метрик в stderr
     print(f"\n=== Метрики модели ===", file=sys.stderr)
@@ -96,12 +107,29 @@ def train_model(input_path, output_path, params_path, mlflow_dir):
     print(f"✓ Модель сохранена: {mlflow_model_uri}", file=sys.stderr)
     return True
 
-    # После вычисления metrics:
+    # === ДОБАВИТЬ ЭТОТ БЛОК ===
+    # Сохранение метрик в JSON для DVC
     import json
+    import os
+
+    metrics = {
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1,
+        "roc_auc": roc_auc,
+        "cv_best_f1": grid_search.best_score_
+    }
+
+    # Создаём папку, если нет
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     metrics_path = os.path.join(os.path.dirname(output_path), 'metrics.json')
+
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(metrics, f, indent=2, ensure_ascii=False)
+
     print(f"✓ Метрики сохранены: {metrics_path}", file=sys.stderr)
+    # ==========================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
