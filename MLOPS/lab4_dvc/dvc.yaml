@@ -1,4 +1,3 @@
-# dvc.yaml
 stages:
   prepare:
     cmd: python src/download.py --input data/raw/raw_adult.csv --output data/processed/processed_adult.csv --params params.yaml
@@ -6,16 +5,10 @@ stages:
       - src/download.py
       - data/raw/raw_adult.csv
     params:
-      - prepare.outlier_method
       - prepare.iqr_multiplier
       - features.age_bins
-      - features.age_labels
-      - features.married_categories
     outs:
       - data/processed/processed_adult.csv
-    metrics:
-      - data/processed/prep_metrics.json:
-          cache: false  # Маленький файл, не кэшировать в DVC
 
   train:
     cmd: python src/train_model.py --input data/processed/processed_adult.csv --output data/models/best_model.txt --params params.yaml --mlflow-dir mlruns
@@ -25,14 +18,8 @@ stages:
     params:
       - train.test_size
       - train.cv_folds
-      - train.scoring
-      - train.random_state
-      - train.grid
     outs:
       - data/models/best_model.txt
     metrics:
       - data/models/metrics.json:
-          cache: false
-    plots:
-      - data/models/roc_curve.png:
           cache: false
