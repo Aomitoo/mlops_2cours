@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split, GridSearchCV
@@ -10,6 +9,7 @@ import mlflow
 import os
 import argparse
 import yaml
+import json
 
 def load_params(params_path='params.yaml'):
     with open(params_path, 'r', encoding='utf-8') as f:
@@ -17,11 +17,18 @@ def load_params(params_path='params.yaml'):
 
 def train_model(input_path, output_path, params_path, mlflow_dir):
     """Обучение модели с логированием в MLflow"""
+    import json  # ← Переносим импорт в начало
+    
     params = load_params(params_path)
     
-    # Настройка MLflow
+    # Настройка MLflow — ИСПРАВЛЕНИЕ ПУТИ
+    # Если путь относительный — делаем его абсолютным
+    if not os.path.isabs(mlflow_dir):
+        mlflow_dir = os.path.abspath(mlflow_dir)
     os.makedirs(mlflow_dir, exist_ok=True)
-    mlflow.set_tracking_uri(f"file://{mlflow_dir}")
+    
+    # Для локального хранилища не используем file:// префикс
+    mlflow.set_tracking_uri(mlflow_dir)
     mlflow.set_experiment("income_prediction")
     
     # Загрузка данных
@@ -58,30 +65,27 @@ def train_model(input_path, output_path, params_path, mlflow_dir):
     y_proba = best_model.predict_proba(X_test)[:, 1]
     
     metrics = {
-        'accuracy': accuracy_score(y_test, y_pred),
-        'precision': precision_score(y_test, y_pred),
-        'recall': recall_score(y_test, y_pred),
-        'f1_score': f1_score(y_test, y_pred),
-        'roc_auc': roc_auc_score(y_test, y_proba),
-        'cv_best_f1': grid_search.best_score_
+        'accuracy': float(accuracy_score(y_test, y_pred)),
+        'precision': float(precision_score(y_test, y_pred)),
+        'recall': float(recall_score(y_test, y_pred)),
+        'f1_score': float(f1_score(y_test, y_pred)),
+        'roc_auc': float(roc_auc_score(y_test, y_proba)),
+        'cv_best_f1': float(grid_search.best_score_)
     }
-
-    import json
-    metrics = {
-        "accuracy": float(accuracy),
-        "precision": float(precision),
-        "recall": float(recall),
-        "f1_score": float(f1),
-        "roc_auc": float(roc_auc)
-    }
-    with open('data/models/metrics.json', 'w') as f:
-        json.dump(metrics, f, indent=2)
     
     # Вывод метрик в stderr
     print(f"\n=== Метрики модели ===", file=sys.stderr)
     for name, value in metrics.items():
         print(f"{name}: {value:.4f}", file=sys.stderr)
     print(f"Лучшие параметры: {grid_search.best_params_}", file=sys.stderr)
+    
+    # === СОХРАНЕНИЕ МЕТРИК В JSON (для DVC) ===
+    metrics_path = os.path.join(os.path.dirname(output_path), 'metrics.json')
+    os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
+    with open(metrics_path, 'w', encoding='utf-8') as f:
+        json.dump(metrics, f, indent=2, ensure_ascii=False)
+    print(f"✓ Метрики сохранены: {metrics_path}", file=sys.stderr)
+    # ==========================================
     
     # MLflow logging
     with mlflow.start_run() as run:
@@ -98,6 +102,7 @@ def train_model(input_path, output_path, params_path, mlflow_dir):
         mlflow.sklearn.log_model(best_model, "model")
         run_id = run.info.run_id
         mlflow_model_uri = f"runs:/{run_id}/model"
+        print(f"\n MLflow model URI: {mlflow_model_uri}", file=sys.stderr)
     
     # Сохранение URI модели
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -105,31 +110,7 @@ def train_model(input_path, output_path, params_path, mlflow_dir):
         f.write(mlflow_model_uri.strip())
     
     print(f"✓ Модель сохранена: {mlflow_model_uri}", file=sys.stderr)
-    return True
-
-    # === ДОБАВИТЬ ЭТОТ БЛОК ===
-    # Сохранение метрик в JSON для DVC
-    import json
-    import os
-
-    metrics = {
-        "accuracy": accuracy,
-        "precision": precision,
-        "recall": recall,
-        "f1_score": f1,
-        "roc_auc": roc_auc,
-        "cv_best_f1": grid_search.best_score_
-    }
-
-    # Создаём папку, если нет
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    metrics_path = os.path.join(os.path.dirname(output_path), 'metrics.json')
-
-    with open(metrics_path, 'w', encoding='utf-8') as f:
-        json.dump(metrics, f, indent=2, ensure_ascii=False)
-
-    print(f"✓ Метрики сохранены: {metrics_path}", file=sys.stderr)
-    # ==========================
+    return True  # ← return в самом конце!
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -140,3 +121,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     train_model(args.input, args.output, args.params, args.mlflow_dir)
+
