@@ -106,7 +106,7 @@ def train_model(input_path, output_path, params_path, mlflow_dir):
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(mlflow_model_uri.strip())
     
-    print(f"✓ Модель сохранена: {mlflow_model_uri}", file=sys.stderr)
+    print(f" Модель сохранена: {mlflow_model_uri}", file=sys.stderr)
     return True  
 
 if __name__ == "__main__":
