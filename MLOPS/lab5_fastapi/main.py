@@ -1,0 +1,143 @@
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import joblib
+import pandas as pd
+import logging
+import os
+import uvicorn
+from sklearn.preprocessing import OrdinalEncoder
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime
+from sqlalchemy.orm import declarative_base, sessionmaker
+from datetime import datetime
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Car Price Prediction API")
+
+# === 1. Загрузка моделей ===
+try:
+    model = joblib.load("models/cars.joblib")
+    predict2price = joblib.load("models/power.joblib")
+    logger.info(" Models loaded successfully")
+except Exception as e:
+    logger.error(f"❌ Error loading models: {e}")
+    model = None
+    predict2price = None
+
+# === 2. Настройка БД ===
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@db:5432/carprice")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class PredictionDB(Base):
+    __tablename__ = "predictions"
+    id = Column(Integer, primary_key=True, index=True)
+    make = Column(String)
+    model = Column(String)
+    year = Column(Integer)
+    style = Column(String)
+    distance = Column(Float)
+    engine_capacity = Column(Float)
+    fuel_type = Column(String)
+    transmission = Column(String)
+    predicted_price = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# === 3. Схема входных данных (Pydantic) ===
+class CarInput(BaseModel):
+    make: str
+    model: str
+    year: int
+    style: str
+    distance: float
+    engine_capacity: float
+    fuel_type: str
+    transmission: str
+
+# === 4. Функции предобработки ===
+def clear_data(df):
+    """Кодирование категориальных признаков"""
+    cat_columns = ['Make', 'Model', 'Style', 'Fuel_type', 'Transmission']
+    ordinal = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+    ordinal.fit(df[cat_columns])
+    encoded = ordinal.transform(df[cat_columns])
+    df[cat_columns] = pd.DataFrame(encoded, columns=cat_columns)
+    return df
+
+def featurize(df):
+    """Генерация новых признаков"""
+    df = df.copy()
+    df['Distance_by_year'] = df['Distance'] / (2022 - df['Year']).replace(0, 1)
+    df['age'] = 2024 - df['Year']
+    
+    if 'Style' in df.columns and 'Engine_capacity' in df.columns:
+        mean_cap = df.groupby('Style')['Engine_capacity'].transform('mean')
+        df['eng_cap_diff'] = (df['Engine_capacity'] - mean_cap).abs()
+        max_cap = df.groupby('Style')['Engine_capacity'].transform('max')
+        df['eng_cap_diff_max'] = (df['Engine_capacity'] - max_cap).abs()
+    return df
+
+# === 5. Создание таблиц при старте ===
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
+
+# === 6. Эндпоинт предсказания ===
+@app.post("/predict")
+async def predict(car: CarInput):
+    if model is None or predict2price is None:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    try:
+        cols = ["Make", "Model", "Year", "Style", "Distance", "Engine_capacity", "Fuel_type", "Transmission"]
+        df = pd.DataFrame([{
+            "Make": car.make, "Model": car.model, "Year": car.year, "Style": car.style,
+            "Distance": car.distance, "Engine_capacity": car.engine_capacity,
+            "Fuel_type": car.fuel_type, "Transmission": car.transmission
+        }])
+        
+        df_clean = clear_data(df[cols])
+        df_feat = featurize(df_clean)
+        
+        pred = model.predict(df_feat)[0]
+        price = float(predict2price.inverse_transform([[pred]])[0][0])
+        
+        # Сохранение в БД
+        db = SessionLocal()
+        record = PredictionDB(
+            make=car.make, model=car.model, year=car.year, style=car.style,
+            distance=car.distance, engine_capacity=car.engine_capacity,
+            fuel_type=car.fuel_type, transmission=car.transmission,
+            predicted_price=round(price, 2)
+        )
+        db.add(record)
+        db.commit()
+        db.close()
+        
+        logger.info(f"📤 Predicted price: {price}")
+        return {"predicted_price": round(price, 2)}
+        
+    except Exception as e:
+        logger.error(f"❌ Prediction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# === 7. Эндпоинт истории ===
+@app.get("/history")
+async def history(limit: int = 10):
+    db = SessionLocal()
+    records = db.query(PredictionDB).order_by(PredictionDB.created_at.desc()).limit(limit).all()
+    db.close()
+    return [{"predicted_price": r.predicted_price, "created_at": r.created_at} for r in records]
+
+# === 8. Health check ===
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "model_loaded": model is not None}
+
+# === Запуск ===
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8005)
